@@ -1,0 +1,7 @@
+---
+- name: Ping Endian Firewall
+  hosts: endian
+  gather_facts: false
+  tasks:
+  - name:Ping Endian Firewall
+    ping:
