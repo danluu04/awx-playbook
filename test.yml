@@ -3,5 +3,5 @@
   hosts: endian
   gather_facts: false
   tasks:
-  - name:Ping Endian Firewall
+  - name: Ping Endian Firewall
     ansible.builtin.ping:
