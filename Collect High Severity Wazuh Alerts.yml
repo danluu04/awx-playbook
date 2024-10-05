@@ -1,38 +1,70 @@
 ---
-- name: Collect High Severity Wazuh Alerts
-  hosts: wazuh_server
+- name: Thu thập cảnh báo Wazuh mức độ cao
+  hosts: 192.168.10.187
   become: yes
   vars:
     alert_level: 10
-    output_file: "/tmp/high_severity_alerts.json"
+    output_file: "/tmp/canh_bao_muc_do_cao.json"
+    time_range: "24h"
+    alert_threshold: 100
 
   tasks:
-    - name: Ensure jq is installed
+    - name: Kiểm tra sự tồn tại của file cảnh báo
+      stat:
+        path: /var/ossec/logs/alerts/alerts.json
+      register: alerts_file
+
+    - name: Dừng playbook nếu file cảnh báo không tồn tại
+      fail:
+        msg: "Không tìm thấy file cảnh báo tại /var/ossec/logs/alerts/alerts.json"
+      when: not alerts_file.stat.exists
+
+    - name: Đảm bảo jq được cài đặt
       package:
         name: jq
         state: present
 
-    - name: Collect high severity alerts
+    - name: Thu thập cảnh báo mức độ cao trong khoảng thời gian
       shell: >
-        /var/ossec/bin/wazuh-logtest-legacy -q -t '(level:>={{ alert_level }})' -l /var/ossec/logs/alerts/alerts.json | 
-        jq 'select(.level >= {{ alert_level }})' > {{ output_file }}
+        cat /var/ossec/logs/alerts/alerts.json |
+        jq -c 'select(.rule.level >= {{ alert_level }} and (.timestamp | fromdateiso8601 | . >= now - {{ time_range | quote }}))' > {{ output_file }}
       register: alert_collection
+      ignore_errors: yes
 
-    - name: Fetch alerts file
+    - name: Ghi log nếu việc thu thập cảnh báo thất bại
+      debug:
+        msg: "Không thể thu thập cảnh báo: {{ alert_collection.stderr }}"
+      when: alert_collection.failed
+
+    - name: Nén file cảnh báo
+      archive:
+        path: "{{ output_file }}"
+        dest: "{{ output_file }}.gz"
+        format: gz
+
+    - name: Tải file cảnh báo đã nén về máy local
       fetch:
-        src: "{{ output_file }}"
-        dest: "./collected_alerts/{{ inventory_hostname }}_high_severity_alerts.json"
+        src: "{{ output_file }}.gz"
+        dest: "./canh_bao_thu_thap/{{ inventory_hostname }}_canh_bao_muc_do_cao.json.gz"
         flat: yes
 
-    - name: Count collected alerts
+    - name: Đếm số lượng cảnh báo thu thập được
       shell: "cat {{ output_file }} | wc -l"
       register: alert_count
 
-    - name: Display alert count
+    - name: Hiển thị số lượng cảnh báo
       debug:
-        msg: "Collected {{ alert_count.stdout }} high severity alerts (level {{ alert_level }}+)"
+        msg: "Đã thu thập {{ alert_count.stdout }} cảnh báo mức độ cao (level {{ alert_level }}+)"
 
-    - name: Clean up temporary file
+    - name: Gửi thông báo nếu số lượng cảnh báo vượt ngưỡng
+      debug:
+        msg: "CẢNH BÁO: Số lượng cảnh báo ({{ alert_count.stdout }}) vượt quá ngưỡng {{ alert_threshold }}"
+      when: alert_count.stdout | int > alert_threshold
+
+    - name: Dọn dẹp file tạm thời
       file:
-        path: "{{ output_file }}"
+        path: "{{ item }}"
         state: absent
+      loop:
+        - "{{ output_file }}"
+        - "{{ output_file }}.gz"
