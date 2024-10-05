@@ -1,5 +1,5 @@
 ---
-- name: Thu thập cảnh báo Wazuh mức độ cao
+- name: Thu thập và phân tích cảnh báo Wazuh mức độ cao
   hosts: 192.168.10.187
   become: yes
   vars:
@@ -7,16 +7,18 @@
     output_file: "/tmp/canh_bao_muc_do_cao.json"
     time_range: "24h"
     alert_threshold: 100
+    alerts_source: "/var/ossec/logs/alerts/alerts.json"
+    local_dest: "./canh_bao_thu_thap"
 
   tasks:
     - name: Kiểm tra sự tồn tại của file cảnh báo
       stat:
-        path: /var/ossec/logs/alerts/alerts.json
+        path: "{{ alerts_source }}"
       register: alerts_file
 
     - name: Dừng playbook nếu file cảnh báo không tồn tại
       fail:
-        msg: "Không tìm thấy file cảnh báo tại /var/ossec/logs/alerts/alerts.json"
+        msg: "Không tìm thấy file cảnh báo tại {{ alerts_source }}"
       when: not alerts_file.stat.exists
 
     - name: Đảm bảo jq được cài đặt
@@ -25,9 +27,8 @@
         state: present
 
     - name: Thu thập cảnh báo mức độ cao trong khoảng thời gian
-      shell: >
-        cat /var/ossec/logs/alerts/alerts.json |
-        jq -c 'select(.rule.level >= {{ alert_level }} and (.timestamp | fromdateiso8601 | . >= now - {{ time_range | quote }}))' > {{ output_file }}
+      command: >
+        jq -c 'select(.rule.level >= {{ alert_level }} and (.timestamp | fromdateiso8601 | . >= now - {{ time_range | quote }}))' {{ alerts_source }} > {{ output_file }}
       register: alert_collection
       ignore_errors: yes
 
@@ -36,31 +37,50 @@
         msg: "Không thể thu thập cảnh báo: {{ alert_collection.stderr }}"
       when: alert_collection.failed
 
-    - name: Nén file cảnh báo
-      archive:
+    - name: Kiểm tra dung lượng file cảnh báo
+      stat:
         path: "{{ output_file }}"
-        dest: "{{ output_file }}.gz"
-        format: gz
+      register: file_stats
+
+    - name: Báo cáo dung lượng file cảnh báo
+      debug:
+        msg: "Dung lượng file cảnh báo: {{ (file_stats.stat.size / 1024 / 1024) | round(2) }} MB"
+
+    - name: Nén file cảnh báo
+      command: gzip -f {{ output_file }}
+      register: compression_result
+
+    - name: Kiểm tra kết quả nén
+      fail:
+        msg: "Không thể nén file cảnh báo"
+      when: compression_result.rc != 0
+
+    - name: Kiểm tra tính toàn vẹn của file đã nén
+      command: gzip -t {{ output_file }}.gz
+      register: integrity_check
+      failed_when: integrity_check.rc != 0
 
     - name: Tải file cảnh báo đã nén về máy local
       fetch:
         src: "{{ output_file }}.gz"
-        dest: "./canh_bao_thu_thap/{{ inventory_hostname }}_canh_bao_muc_do_cao.json.gz"
+        dest: "{{ local_dest }}/{{ inventory_hostname }}_canh_bao_muc_do_cao.json.gz"
         flat: yes
 
     - name: Đếm số lượng cảnh báo thu thập được
-      shell: "cat {{ output_file }} | wc -l"
+      command: "wc -l {{ output_file }}.gz"
       register: alert_count
 
     - name: Hiển thị số lượng cảnh báo
       debug:
-        msg: "Đã thu thập {{ alert_count.stdout }} cảnh báo mức độ cao (level {{ alert_level }}+)"
+        msg: "Đã thu thập {{ alert_count.stdout.split()[0] }} cảnh báo mức độ cao (level {{ alert_level }}+)"
 
     - name: Gửi thông báo nếu số lượng cảnh báo vượt ngưỡng
       debug:
-        msg: "CẢNH BÁO: Số lượng cảnh báo ({{ alert_count.stdout }}) vượt quá ngưỡng {{ alert_threshold }}"
-      when: alert_count.stdout | int > alert_threshold
+        msg: "CẢNH BÁO: Số lượng cảnh báo ({{ alert_count.stdout.split()[0] }}) vượt quá ngưỡng {{ alert_threshold }}"
+      when: alert_count.stdout.split()[0] | int > alert_threshold
+      notify: Dọn dẹp file tạm thời
 
+  handlers:
     - name: Dọn dẹp file tạm thời
       file:
         path: "{{ item }}"
