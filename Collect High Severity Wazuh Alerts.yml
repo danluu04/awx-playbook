@@ -1,0 +1,38 @@
+---
+- name: Collect High Severity Wazuh Alerts
+  hosts: wazuh_server
+  become: yes
+  vars:
+    alert_level: 10
+    output_file: "/tmp/high_severity_alerts.json"
+
+  tasks:
+    - name: Ensure jq is installed
+      package:
+        name: jq
+        state: present
+
+    - name: Collect high severity alerts
+      shell: >
+        /var/ossec/bin/wazuh-logtest-legacy -q -t '(level:>={{ alert_level }})' -l /var/ossec/logs/alerts/alerts.json | 
+        jq 'select(.level >= {{ alert_level }})' > {{ output_file }}
+      register: alert_collection
+
+    - name: Fetch alerts file
+      fetch:
+        src: "{{ output_file }}"
+        dest: "./collected_alerts/{{ inventory_hostname }}_high_severity_alerts.json"
+        flat: yes
+
+    - name: Count collected alerts
+      shell: "cat {{ output_file }} | wc -l"
+      register: alert_count
+
+    - name: Display alert count
+      debug:
+        msg: "Collected {{ alert_count.stdout }} high severity alerts (level {{ alert_level }}+)"
+
+    - name: Clean up temporary file
+      file:
+        path: "{{ output_file }}"
+        state: absent
