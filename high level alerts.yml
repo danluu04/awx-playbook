@@ -6,7 +6,7 @@
   vars:
     alert_level: 9
     wazuh_server: "192.168.10.187"
-    wazuh_user: "wazuh_user"
+    wazuh_user: "wazuh"
     wazuh_alerts_path: "/var/ossec/logs/alerts/alerts.json"
     local_output_file: "/tmp/high_level_alerts.json"
     awx_alerts_dir: "/var/lib/awx/projects/wazuh_alerts"
