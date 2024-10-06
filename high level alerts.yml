@@ -1,6 +1,6 @@
 ---
 - name: Thu thập cảnh báo Wazuh mức độ cao từ AWX sử dụng SSH
-  hosts: localhost
+  hosts: 192.168.10.181
   connection: local
   become: no
   vars:
