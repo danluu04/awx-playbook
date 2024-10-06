@@ -1,77 +1,81 @@
 ---
-- name: Thu thập cảnh báo Wazuh mức độ cao từ AWX sử dụng SSH
-  hosts: localhost
-  connection: local
-  become: no
+- name: Thu thập cảnh báo Wazuh mức độ cao và gửi về AWX
+  hosts: 192.168.10.187
+  become: yes
   vars:
     alert_level: 9
-    wazuh_server: "192.168.10.187"
-    wazuh_user: "wazuh"
-    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
     wazuh_alerts_path: "/var/ossec/logs/alerts/alerts.json"
     local_output_file: "/tmp/high_level_alerts.json"
     awx_alerts_dir: "/var/lib/awx/projects/wazuh_alerts"
-    alert_time_range: "48h"
+    alert_time_range: "24h"
 
   tasks:
-    - name: Kiểm tra kết nối SSH đến Wazuh server
-      ansible.builtin.command:
-        cmd: ssh -o BatchMode=yes -o ConnectTimeout=5 {{ wazuh_user }}@{{ wazuh_server }} echo OK
-      register: ssh_result
-      ignore_errors: true
+    - name: Kiểm tra trạng thái Wazuh manager
+      command: /var/ossec/bin/wazuh-control status
+      register: wazuh_status
+      ignore_errors: yes
 
-    - name: Dừng playbook nếu không thể kết nối SSH
-      ansible.builtin.fail:
-        msg: "Không thể kết nối SSH đến Wazuh server {{ wazuh_server }}"
-      when: ssh_result.rc != 0
+    - name: Hiển thị trạng thái Wazuh
+      debug:
+        var: wazuh_status.stdout_lines
 
-    - name: Kiểm tra file cảnh báo Wazuh từ xa
-      ansible.builtin.stat:
+    - name: Khởi động lại Wazuh manager nếu không hoạt động
+      command: /var/ossec/bin/wazuh-control restart
+      when: wazuh_status.rc != 0 or "'wazuh-manager is running' not in wazuh_status.stdout"
+      register: restart_result
+
+    - name: Hiển thị kết quả khởi động lại
+      debug:
+        var: restart_result.stdout_lines
+      when: restart_result is changed
+
+    - name: Kiểm tra sự tồn tại của file cảnh báo
+      stat:
         path: "{{ wazuh_alerts_path }}"
-      delegate_to: "{{ wazuh_server }}"
       register: alert_file
 
     - name: Dừng playbook nếu không tìm thấy file cảnh báo
-      ansible.builtin.fail:
-        msg: "Không tìm thấy file cảnh báo Wazuh tại {{ wazuh_alerts_path }} trên server {{ wazuh_server }}"
+      fail:
+        msg: "Không tìm thấy file cảnh báo Wazuh tại {{ wazuh_alerts_path }}"
       when: not alert_file.stat.exists
 
-    - name: Lọc và truyền cảnh báo mức độ cao trong khoảng thời gian cụ thể
-      ansible.builtin.shell: |
-        ssh {{ wazuh_user }}@{{ wazuh_server }} "jq -c 'select(.rule.level >= {{ alert_level }} and .timestamp >= (now - {{ alert_time_range | to_json }}))' {{ wazuh_alerts_path }}" > {{ local_output_file }}
+    - name: Lọc cảnh báo mức độ cao
+      shell: |
+        jq -c 'select(.rule.level >= {{ alert_level }} and .timestamp >= (now - {{ alert_time_range | to_json }}))' {{ wazuh_alerts_path }} > {{ local_output_file }}
       register: filtered_alerts
 
     - name: Kiểm tra kết quả lọc cảnh báo
-      ansible.builtin.stat:
+      stat:
         path: "{{ local_output_file }}"
       register: filtered_file
 
     - name: Tạo thư mục đích trên AWX
-      ansible.builtin.file:
+      file:
         path: "{{ awx_alerts_dir }}"
         state: directory
         mode: '0755'
 
-    - name: Di chuyển file cảnh báo đến thư mục đích
-      ansible.builtin.copy:
+    - name: Di chuyển file cảnh báo đến thư mục AWX
+      copy:
         src: "{{ local_output_file }}"
         dest: "{{ awx_alerts_dir }}/high_level_alerts_{{ ansible_date_time.iso8601 }}.json"
+        remote_src: yes
         mode: '0644'
       when: filtered_file.stat.exists
       register: copy_result
 
     - name: Xóa file tạm
-      ansible.builtin.file:
+      file:
         path: "{{ local_output_file }}"
         state: absent
       when: filtered_file.stat.exists
 
     - name: Ghi log kết quả
-      ansible.builtin.lineinfile:
+      lineinfile:
         path: "{{ awx_alerts_dir }}/alerts_transfer.log"
-        line: "{{ ansible_date_time.iso8601 }} - Đã chuyển {{ filtered_file.stat.size | default(0) }} byte dữ liệu cảnh báo từ {{ wazuh_server }}"
+        line: "{{ ansible_date_time.iso8601 }} - Đã chuyển {{ filtered_file.stat.size | default(0) }} byte dữ liệu cảnh báo"
         create: yes
 
     - name: Thông báo kết quả
-      ansible.builtin.debug:
+      debug:
         msg: "Quá trình thu thập cảnh báo đã hoàn tất. Kiểm tra log tại {{ awx_alerts_dir }}/alerts_transfer.log"
