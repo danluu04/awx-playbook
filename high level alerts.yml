@@ -6,6 +6,8 @@
     alert_level: 9
     wazuh_alerts_path: "/var/ossec/logs/alerts/alerts.json"
     local_output_file: "/tmp/high_level_alerts.json"
+    awx_server: "your_awx_server_ip"
+    awx_user: "your_awx_user"
     awx_alerts_dir: "/var/lib/awx/projects/wazuh_alerts"
     alert_time_range: "24h"
 
@@ -29,16 +31,6 @@
         var: restart_result.stdout_lines
       when: restart_result is changed
 
-    - name: Kiểm tra sự tồn tại của file cảnh báo
-      stat:
-        path: "{{ wazuh_alerts_path }}"
-      register: alert_file
-
-    - name: Dừng playbook nếu không tìm thấy file cảnh báo
-      fail:
-        msg: "Không tìm thấy file cảnh báo Wazuh tại {{ wazuh_alerts_path }}"
-      when: not alert_file.stat.exists
-
     - name: Lọc cảnh báo mức độ cao
       shell: |
         jq -c 'select(.rule.level >= {{ alert_level }} and .timestamp >= (now - {{ alert_time_range | to_json }}))' {{ wazuh_alerts_path }} > {{ local_output_file }}
@@ -49,20 +41,10 @@
         path: "{{ local_output_file }}"
       register: filtered_file
 
-    - name: Tạo thư mục đích trên AWX
-      file:
-        path: "{{ awx_alerts_dir }}"
-        state: directory
-        mode: '0755'
-
-    - name: Di chuyển file cảnh báo đến thư mục AWX
-      copy:
-        src: "{{ local_output_file }}"
-        dest: "{{ awx_alerts_dir }}/high_level_alerts_{{ ansible_date_time.iso8601 }}.json"
-        remote_src: yes
-        mode: '0644'
+    - name: Gửi file cảnh báo đến AWX qua SCP
+      command: scp -o StrictHostKeyChecking=no {{ local_output_file }} {{ awx_user }}@{{ awx_server }}:{{ awx_alerts_dir }}/high_level_alerts_{{ ansible_date_time.iso8601 }}.json
       when: filtered_file.stat.exists
-      register: copy_result
+      register: scp_result
 
     - name: Xóa file tạm
       file:
@@ -70,12 +52,12 @@
         state: absent
       when: filtered_file.stat.exists
 
-    - name: Ghi log kết quả
-      lineinfile:
-        path: "{{ awx_alerts_dir }}/alerts_transfer.log"
-        line: "{{ ansible_date_time.iso8601 }} - Đã chuyển {{ filtered_file.stat.size | default(0) }} byte dữ liệu cảnh báo"
-        create: yes
+    - name: Ghi log kết quả trên AWX
+      shell: |
+        ssh -o StrictHostKeyChecking=no {{ awx_user }}@{{ awx_server }} "echo '{{ ansible_date_time.iso8601 }} - Đã nhận {{ filtered_file.stat.size | default(0) }} byte dữ liệu cảnh báo' >> {{ awx_alerts_dir }}/alerts_transfer.log"
+      when: scp_result is success
+      ignore_errors: yes
 
     - name: Thông báo kết quả
       debug:
-        msg: "Quá trình thu thập cảnh báo đã hoàn tất. Kiểm tra log tại {{ awx_alerts_dir }}/alerts_transfer.log"
+        msg: "Quá trình thu thập và gửi cảnh báo đã hoàn tất. Kiểm tra log tại {{ awx_alerts_dir }}/alerts_transfer.log trên AWX server"
