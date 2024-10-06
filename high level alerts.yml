@@ -38,7 +38,7 @@
         dest: "{{ awx_alerts_dir }}/"
         mode: push
       delegate_to: "{{ inventory_hostname }}"
-      when: filtered_file.stat.exists and filtered_file.stat.size > 0
+     
 
     - name: Xóa file tạm
       file:
