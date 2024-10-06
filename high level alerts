@@ -1,0 +1,43 @@
+---
+- name: Thu thập và gửi cảnh báo Wazuh mức độ cao về AWX
+  hosts: 192.168.10.187
+  become: yes
+  vars:
+    alert_level: 9
+    wazuh_alerts_path: "/var/ossec/logs/alerts/alerts.json"
+    output_file: "/tmp/high_level_alerts.json"
+    awx_server: "192.168.10.181"
+    awx_user: "admin"
+    awx_alerts_dir: "/var/lib/awx/incoming_alerts"
+
+  tasks:
+    - name: Kiểm tra file cảnh báo Wazuh
+      stat:
+        path: "{{ wazuh_alerts_path }}"
+      register: alert_file
+
+    - name: Dừng playbook nếu không tìm thấy file cảnh báo
+      fail:
+        msg: "Không tìm thấy file cảnh báo Wazuh tại {{ wazuh_alerts_path }}"
+      when: not alert_file.stat.exists
+
+    - name: Lọc cảnh báo mức độ cao
+      shell: |
+        jq -c 'select(.rule.level >= {{ alert_level }})' {{ wazuh_alerts_path }} > {{ output_file }}
+      register: filtered_alerts
+
+    - name: Kiểm tra kết quả lọc cảnh báo
+      stat:
+        path: "{{ output_file }}"
+      register: filtered_file
+
+    - name: Gửi file cảnh báo đến AWX qua SSH
+      command: >
+        scp {{ output_file }} {{ awx_user }}@{{ awx_server }}:{{ awx_alerts_dir }}/
+      when: filtered_file.stat.exists and filtered_file.stat.size > 0
+
+    - name: Xóa file tạm
+      file:
+        path: "{{ output_file }}"
+        state: absent
+      when: filtered_file.stat.exists
