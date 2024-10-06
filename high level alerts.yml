@@ -3,7 +3,7 @@
   hosts: 192.168.10.187
   become: yes
   vars:
-    alert_level: 5
+    alert_level: 9
     wazuh_alerts_path: "/var/ossec/logs/alerts/alerts.json"
     output_file: "/tmp/high_level_alerts.json"
     awx_server: "192.168.10.181"
@@ -32,12 +32,12 @@
         path: "{{ output_file }}"
       register: filtered_file
 
-    - name: Gửi file cảnh báo đến AWX
-      ansible.posix.synchronize:
-        src: "{{ output_file }}"
-        dest: "{{ awx_alerts_dir }}/"
-        mode: push
-      delegate_to: "{{ inventory_hostname }}"
+   - name: Gửi file cảnh báo đến AWX
+  copy:
+    src: /tmp/high_level_alerts.json
+    dest: /var/lib/awx/incoming_alerts/
+    mode: '0644'
+  delegate_to: "{{ awx_server }}"
      
 
     - name: Xóa file tạm
