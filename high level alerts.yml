@@ -1,6 +1,6 @@
 ---
 - name: Thu thập và gửi cảnh báo Wazuh mức độ cao về AWX
-  hosts: wazuh_servers
+  hosts: 192.168.10.187
   become: yes
   vars:
     alert_level: 9
