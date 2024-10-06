@@ -3,7 +3,7 @@
   hosts: 192.168.10.187
   become: yes
   vars:
-    alert_level: 9
+    alert_level: 5
     wazuh_alerts_path: "/var/ossec/logs/alerts/alerts.json"
     output_file: "/tmp/high_level_alerts.json"
     awx_server: "192.168.10.181"
