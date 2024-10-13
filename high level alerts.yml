@@ -48,16 +48,16 @@
         state: absent
       loop: "{{ old_files.files }}"
 
-  - name: Gửi thông báo qua email (tùy chọn)
-  community.general.mail:
-    host: smtp.gmail.com
-    port: 587
-    username: "nhatdanluu@gmail.com"
-    password: "dan10042002"
-    to: "luulinhdan2002@gmail.com"
-    subject: "Cảnh báo Wazuh mức độ cao"
-    body: "Có {{ high_level_alerts.stdout_lines | length }} cảnh báo mức độ cao. Vui lòng kiểm tra file log để biết thêm chi tiết."
-  when: high_level_alerts.stdout_lines | length > 0
+    - name: Gửi thông báo qua email (tùy chọn)
+    community.general.mail:
+      host: smtp.gmail.com
+      port: 587
+      username: "nhatdanluu@gmail.com"
+      password: "dan10042002"
+      to: "luulinhdan2002@gmail.com"
+      subject: "Cảnh báo Wazuh mức độ cao"
+      body: "Có {{ high_level_alerts.stdout_lines | length }} cảnh báo mức độ cao. Vui lòng kiểm tra file log để biết thêm chi tiết."
+    when: high_level_alerts.stdout_lines | length > 0
 
     - name: Ghi log hoạt động
       delegate_to: localhost
