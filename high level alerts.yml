@@ -20,13 +20,6 @@
         msg: "Cảnh báo mức độ cao: {{ item.rule.description }} - Level: {{ item.rule.level }}"
       loop: "{{ high_level_alerts.stdout_lines | map('from_json') | list }}"
 
-    - name: Tạo thư mục lưu trữ cảnh báo trên AWX
-      delegate_to: localhost
-      file:
-        path: "{{ awx_storage_path }}"
-        state: directory
-        mode: '0755'
-
     - name: Lưu cảnh báo vào file trên AWX
       delegate_to: localhost
       copy:
