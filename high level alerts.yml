@@ -2,7 +2,8 @@
 - name: Xử lý và lưu trữ cảnh báo Wazuh mức độ cao
   hosts: 192.168.10.187
   become: yes
-
+  become_method: sudo
+  become_exe: /usr/bin/sudo
   vars:
     alert_level_threshold: 12
     wazuh_alerts_file: "/var/ossec/logs/alerts/alerts.json"
