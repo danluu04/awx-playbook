@@ -1,6 +1,6 @@
 ---
 - name: Xử lý và lưu trữ cảnh báo Wazuh mức độ cao
-  hosts: wazuh_server
+  hosts: 192.168.10.187
   become: yes
   vars:
     alert_level_threshold: 12
