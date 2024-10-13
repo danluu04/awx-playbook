@@ -49,7 +49,7 @@
       loop: "{{ old_files.files }}"
 
     - name: Gửi thông báo qua email (tùy chọn)
-      mail:
+     ansible-galaxy collection install community.general:
         host: smtp.gmail.com
         port: 587
         username: "nhatdanluu@gmail.com"
