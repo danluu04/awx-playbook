@@ -50,11 +50,11 @@
 
     - name: Gửi thông báo qua email (tùy chọn)
       mail:
-        host: smtp.example.com
+        host: smtp.gmail.com
         port: 587
-        username: "your_email@example.com"
-        password: "{{ email_password }}"
-        to: "security_team@example.com"
+        username: "nhatdanluu@gmail.com"
+        password: "dan10042002"
+        to: "luulinhdan2002@gmail.com"
         subject: "Cảnh báo Wazuh mức độ cao"
         body: "Có {{ high_level_alerts.stdout_lines | length }} cảnh báo mức độ cao. Vui lòng kiểm tra file log để biết thêm chi tiết."
       when: high_level_alerts.stdout_lines | length > 0
