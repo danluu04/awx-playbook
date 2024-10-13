@@ -20,28 +20,6 @@
         msg: "Cảnh báo mức độ cao: {{ item.rule.description }} - Level: {{ item.rule.level }}"
       loop: "{{ high_level_alerts.stdout_lines | map('from_json') | list }}"
 
-    - name: Lưu cảnh báo vào file trên AWX
-      delegate_to: localhost
-      copy:
-        content: "{{ item | to_nice_json }}"
-        dest: "{{ awx_storage_path }}/high_alerts_{{ ansible_date_time.date }}.json"
-        mode: '0644'
-      loop: "{{ high_level_alerts.stdout_lines | map('from_json') | list }}"
-
-    - name: Xóa file cảnh báo cũ
-      delegate_to: localhost
-      find:
-        paths: "{{ awx_storage_path }}"
-        patterns: "high_alerts_*.json"
-        age: "{{ retention_days }}d"
-      register: old_files
-
-    - name: Xóa các file cũ
-      delegate_to: localhost
-      file:
-        path: "{{ item.path }}"
-        state: absent
-      loop: "{{ old_files.files }}"
 
     - name: Ghi log hoạt động
       delegate_to: localhost
