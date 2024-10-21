@@ -16,4 +16,4 @@
         msg: "Cảnh báo mức độ cao: {{ item.rule.description }} - Level: {{ item.rule.level }}"
       loop: "{{ high_level_alerts.stdout_lines | map('from_json') | list }}"
 
-    # Thêm các task xử lý cảnh báo khác ở đây, như gửi email, tạo ticket, v.v.
+   
