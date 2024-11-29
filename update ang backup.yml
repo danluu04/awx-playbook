@@ -2,6 +2,7 @@
 - name: Update and Backup Wazuh
   hosts: 192.168.10.187
   become: true
+   become_user: root
   gather_facts: no
   tasks:
     - name: Ensure Wazuh is updated to the latest version
@@ -20,10 +21,12 @@
         path: /var/ossec/backup
         state: directory
         mode: '0755'
+         become_user: root
 
     - name: Create backup of Wazuh
       command: tar -czf /var/ossec/backup/wazuh_backup.tar.gz -C /var/ossec .
       register: backup_result
+       become_user: root
 
     - name: Notify if backup was successful
       debug:
@@ -37,6 +40,7 @@
         remote_src: yes
       when: backup_result.rc == 0
       register: copy_result
+       become_user: root
 
     - name: Notify if backup was copied successfully
       debug:
