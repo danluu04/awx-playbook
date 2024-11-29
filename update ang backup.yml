@@ -18,7 +18,7 @@
     - name: Create backup of Wazuh
       command: /var/ossec/backup
       register: backup_result
-
+      become: true
     - name: Notify if backup was successful
       debug:
         msg: "Backup created successfully at {{ backup_result.stdout }}"
@@ -31,7 +31,8 @@
         remote_src: yes
       when: backup_result.rc == 0
       register: copy_result
-
+      become: true
+      
     - name: Notify if backup was copied successfully
       debug:
         msg: "Backup copied successfully to /path/to/your/backup/location/"
