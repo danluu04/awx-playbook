@@ -15,25 +15,30 @@
         msg: "Wazuh has been updated to the latest version."
       when: update_result.changed
 
+    - name: Create backup directory if it doesn't exist
+      file:
+        path: /var/ossec/backup
+        state: directory
+        mode: '0755'
+
     - name: Create backup of Wazuh
-      command: /var/ossec/backup
+      command: tar -czf /var/ossec/backup/wazuh_backup.tar.gz -C /var/ossec .
       register: backup_result
-      become: true
+
     - name: Notify if backup was successful
       debug:
-        msg: "Backup created successfully at {{ backup_result.stdout }}"
+        msg: "Backup created successfully at /var/ossec/backup/wazuh_backup.tar.gz"
       when: backup_result.rc == 0
 
     - name: Copy the backup to a secure location
       copy:
-        src: /var/ossec/backup/
-        dest: /home/wazuh/backup
+        src: /var/ossec/backup/wazuh_backup.tar.gz
+        dest: /home/wazuh/backup/
         remote_src: yes
       when: backup_result.rc == 0
       register: copy_result
-      become: true
-      
+
     - name: Notify if backup was copied successfully
       debug:
-        msg: "Backup copied successfully to /path/to/your/backup/location/"
+        msg: "Backup copied successfully to /home/wazuh/backup/"
       when: copy_result.changed
