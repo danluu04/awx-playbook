@@ -30,7 +30,7 @@
 
     - name: Notify if backup was successful
       debug:
-        msg: "Backup created successfully at /var/ossec/backup/wazuh_backup.tar.gz"
+        msg: "Backup created successfully at /var/ossec/backup.tar.gz"
       when: backup_result.rc == 0
 
     - name: Copy the backup to a secure location
